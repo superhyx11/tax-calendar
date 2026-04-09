@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球税收日历提醒器 | Global Tax Calendar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #1a365d;
+            --primary-light: #2c5282;
+            --primary-lighter: #3182ce;
+            --bg: #f7fafc;
+            --white: #ffffff;
+            --text: #1a202c;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+            --border: #e2e8f0;
+            --hover: #edf2f7;
+            --overdue: #fed7d7;
+            --overdue-text: #c53030;
+            --urgent: #feebc8;
+            --urgent-text: #c05621;
+            --upcoming: #faf089;
+            --upcoming-text: #975a16;
+            --completed: #c6f6d5;
+            --completed-text: #276749;
+            --pending: #e2e8f0;
+            --pending-text: #4a5568;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-lg: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .header h1 svg {
+            width: 32px;
+            height: 32px;
+        }
+        
+        .current-date {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        /* Stats Bar */
+        .stats-bar {
+            background: var(--white);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .stats-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .stat-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+        
+        .stat-badge.overdue {
+            background: var(--overdue);
+            color: var(--overdue-text);
+        }
+        
+        .stat-badge.urgent {
+            background: var(--urgent);
+            color: var(--urgent-text);
+        }
+        
+        .stat-badge.upcoming {
+            background: var(--upcoming);
+            color: var(--upcoming-text);
+        }
+        
+        .stat-badge.completed {
+            background: var(--completed);
+            color: var(--completed-text);
+        }
+        
+        /* Toolbar */
+        .toolbar {
+            background: var(--white);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .toolbar-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .filter-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        select, input {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-family: inherit;
+            background: var(--white);
+            color: var(--text);
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        select:hover, input:hover {
+            border-color: var(--primary-lighter);
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--primary-lighter);
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-light);
+        }
+        
+        .btn-secondary {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--hover);
+        }
+        
+        .btn-success {
+            background: #276749;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #22543d;
+        }
+        
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .toolbar-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        /* Sync Status */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8125rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+        }
+        
+        .sync-status.connected {
+            background: var(--completed);
+            border-color: #9ae6b4;
+        }
+        
+        .sync-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        
+        .sync-status.connected .dot {
+            background: #276749;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Content */
+        .main-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem;
+        }
+        
+        /* Table Container */
+        .table-container {
+            background: var(--white);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        
+        .table-scroll {
+            overflow-x: auto;
+            max-height: calc(100vh - 350px);
+            overflow-y: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8125rem;
+        }
+        
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        th {
+            background: var(--primary);
+            color: white;
+            padding: 1rem 0.75rem;
+            text-align: center;
+            font-weight: 600;
+            white-space: nowrap;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            background: var(--primary);
+        }
+        
+        th.col-category {
+            background: var(--primary-light);
+            font-size: 0.75rem;
+            padding: 0.5rem;
+        }
+        
+        th.col-subcategory {
+            background: var(--primary);
+            font-size: 0.6875rem;
+            padding: 0.5rem;
+            font-weight: 500;
+        }
+        
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            vertical-align: middle;
+        }
+        
+        td:first-child {
+            position: sticky;
+            left: 0;
+            background: var(--white);
+            z-index: 5;
+            font-weight: 600;
+            white-space: nowrap;
+            border-right: 2px solid var(--border);
+        }
+        
+        tbody tr:hover td {
+            background: var(--hover);
+        }
+        
+        tbody tr:hover td:first-child {
+            background: var(--hover);
+        }
+        
+        .country-name {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .country-flag {
+            font-size: 1.25rem;
+        }
+        
+        .country-code {
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+            display: block;
+        }
+        
+        /* Tax Cell */
+        .tax-cell {
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+            min-height: 60px;
+        }
+        
+        .tax-cell:hover {
+            transform: scale(1.02);
+        }
+        
+        .tax-item {
+            padding: 0.375rem 0.5rem;
+            border-radius: 4px;
+            margin: 0.125rem 0;
+            font-size: 0.75rem;
+        }
+        
+        .tax-item.overdue {
+            background: var(--overdue);
+            color: var(--overdue-text);
+        }
+        
+        .tax-item.urgent {
+            background: var(--urgent);
+            color: var(--urgent-text);
+        }
+        
+        .tax-item.upcoming {
+            background: var(--upcoming);
+            color: var(--upcoming-text);
+        }
+        
+        .tax-item.completed {
+            background: var(--completed);
+            color: var(--completed-text);
+        }
+        
+        .tax-item.pending {
+            background: var(--pending);
+            color: var(--pending-text);
+        }
+        
+        .tax-date {
+            font-weight: 600;
+            display: block;
+        }
+        
+        .tax-type {
+            font-size: 0.6875rem;
+            opacity: 0.8;
+        }
+        
+        /* Legend */
+        .legend {
+            display: flex;
+            gap: 1.5rem;
+            padding: 1rem;
+            background: var(--bg);
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        
+        .legend-color.overdue { background: var(--overdue); }
+        .legend-color.urgent { background: var(--urgent); }
+        .legend-color.upcoming { background: var(--upcoming); }
+        .legend-color.completed { background: var(--completed); }
+        .legend-color.pending { background: var(--pending); }
+        
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--white);
+            border-radius: 12px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+            animation: modalSlide 0.2s ease-out;
+        }
+        
+        .modal.wide {
+            max-width: 800px;
+        }
+        
+        @keyframes modalSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0.25rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        .modal-close:hover {
+            background: var(--hover);
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+        }
+        
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+        }
+        
+        /* Sync Panel */
+        .sync-panel {
+            background: linear-gradient(135deg, #ebf8ff 0%, #e6fffa 100%);
+            border: 1px solid #90cdf4;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .sync-panel h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .sync-panel .input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .sync-panel .input-group input {
+            flex: 1;
+        }
+        
+        .sync-info {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            margin-top: 0.75rem;
+        }
+        
+        .sync-info code {
+            background: rgba(0,0,0,0.1);
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        .share-url {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .share-url input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-family: monospace;
+            font-size: 0.8125rem;
+        }
+        
+        .share-url input:focus {
+            outline: none;
+        }
+        
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        /* Reminder Bell Button */
+        .reminder-btn {
+            position: relative;
+        }
+        .reminder-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #e53e3e;
+            color: white;
+            font-size: 0.65rem;
+            font-weight: 700;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        /* Reminder Modal */
+        #reminderModal .modal {
+            max-width: 560px;
+        }
+        .reminder-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.625rem;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+        .reminder-item {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border-left: 4px solid transparent;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,.08);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .reminder-item:hover { background: #f7fafc; }
+        .reminder-item.days-1,
+        .reminder-item.days-2,
+        .reminder-item.days-3 { border-left-color: #e53e3e; }
+        .reminder-item.days-4,
+        .reminder-item.days-5,
+        .reminder-item.days-6,
+        .reminder-item.days-7 { border-left-color: #dd6b20; }
+        .reminder-item.days-8,
+        .reminder-item.days-9,
+        .reminder-item.days-10 { border-left-color: #d69e2e; }
+        .reminder-days {
+            font-size: 1.25rem;
+            font-weight: 700;
+            min-width: 2.5rem;
+            text-align: center;
+            line-height: 1.1;
+        }
+        .reminder-days span {
+            display: block;
+            font-size: 0.6rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+        .reminder-days.red { color: #e53e3e; }
+        .reminder-days.orange { color: #dd6b20; }
+        .reminder-days.yellow { color: #d69e2e; }
+        .reminder-info { flex: 1; min-width: 0; }
+        .reminder-info strong {
+            font-size: 0.9rem;
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .reminder-info small {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        .reminder-date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .reminder-empty {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        .reminder-empty svg { margin-bottom: 0.5rem; opacity: .4; }
+        
+        .toast {
+            background: var(--primary);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
+            animation: toastSlide 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .toast.success {
+            background: #276749;
+        }
+        
+        .toast.error {
+            background: #c53030;
+        }
+
+        .toast.info {
+            background: #2b6cb0;
+        }
+
+        .toast.warning {
+            background: #c05621;
+        }
+        
+        @keyframes toastSlide {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Section Divider */
+        .section-divider {
+            background: #edf2f7;
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0.5rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .stats-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .toolbar-content {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .toolbar-actions {
+                margin-left: 0;
+                justify-content: flex-end;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                全球税收日历提醒器
+            </h1>
+            <div class="current-date">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span id="currentDateTime"></span>
+            </div>
+        </div>
+    </header>
+    
+    <div class="stats-bar">
+        <div class="stats-content">
+            <div class="stat-item">
+                <span>逾期:</span>
+                <span class="stat-badge overdue" id="statOverdue">0</span>
+            </div>
+            <div class="stat-item">
+                <span>10日内到期:</span>
+                <span class="stat-badge urgent" id="statUrgent">0</span>
+            </div>
+            <div class="stat-item">
+                <span>本月到期:</span>
+                <span class="stat-badge upcoming" id="statUpcoming">0</span>
+            </div>
+            <div class="stat-item">
+                <span>已完成:</span>
+                <span class="stat-badge completed" id="statCompleted">0</span>
+            </div>
+            <div class="stat-item">
+                <span>总计:</span>
+                <span class="stat-badge" style="background: var(--primary); color: white;" id="statTotal">0</span>
+            </div>
+            <div class="sync-status" id="syncStatus">
+                <span class="dot"></span>
+                <span id="syncStatusText">本地模式</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toolbar">
+        <div class="toolbar-content">
+            <div class="filter-group">
+                <label class="filter-label">年份:</label>
+                <select id="yearFilter">
+                    <option value="2025">2025</option>
+                    <option value="2026" selected>2026</option>
+                    <option value="2027">2027</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">月份:</label>
+                <select id="monthFilter">
+                    <option value="0">全年</option>
+                    <option value="1">1月</option>
+                    <option value="2">2月</option>
+                    <option value="3">3月</option>
+                    <option value="4">4月</option>
+                    <option value="5">5月</option>
+                    <option value="6">6月</option>
+                    <option value="7">7月</option>
+                    <option value="8">8月</option>
+                    <option value="9">9月</option>
+                    <option value="10">10月</option>
+                    <option value="11">11月</option>
+                    <option value="12">12月</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">季度:</label>
+                <select id="quarterFilter">
+                    <option value="0">全部季度</option>
+                    <option value="1">Q1 (1-3月)</option>
+                    <option value="2">Q2 (4-6月)</option>
+                    <option value="3">Q3 (7-9月)</option>
+                    <option value="4">Q4 (10-12月)</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">税种:</label>
+                <select id="taxTypeFilter">
+                    <option value="all">全部税种</option>
+                    <option value="cit">企业所得税</option>
+                    <option value="tp">转让定价</option>
+                    <option value="p2">支柱二</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label">辖区:</label>
+                <select id="countryFilter">
+                    <option value="all">全部辖区</option>
+                </select>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="resetFilters()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                    <path d="M3 3v5h5"></path>
+                </svg>
+                重置
+            </button>
+            
+            <div class="toolbar-actions">
+                <button class="btn btn-secondary reminder-btn" onclick="openReminderModal()" id="reminderBtn" title="截止提醒">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    提醒
+                </button>
+                <button class="btn btn-primary" onclick="openAddModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    新增申报
+                </button>
+                <button class="btn btn-secondary" onclick="exportToExcel()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    导出Excel
+                </button>
+                <button class="btn btn-secondary" onclick="exportToPDF()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                    导出PDF
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <main class="main-content">
+        <div class="info-panel">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                使用说明
+            </h3>
+            <p>点击表格中的单元格可查看/编辑详情。颜色标注：🔴 逾期 | 🟠 10日内到期 | 🟡 本月到期 | 🟢 已完成 | ⚪ 待申报。<strong>点击"提醒"按钮可查看即将到期的申报项目。</strong></p>
+        </div>
+        
+        <div class="table-container">
+            <div class="table-scroll">
+                <table id="taxCalendar">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="min-width: 120px;">辖区 / Jurisdiction</th>
+                            <th class="section-divider">企业所得税 CIT</th>
+                            <th colspan="3" class="section-divider">转让定价 Transfer Pricing</th>
+                            <th colspan="3" class="section-divider">支柱二 Pillar Two</th>
+                        </tr>
+                        <tr>
+                            <th>年度所得税申报<br>Annual CIT</th>
+                            <th>关联交易明细表<br>RPT Details</th>
+                            <th>CBCR Notification</th>
+                            <th>Local File</th>
+                            <th>GIR</th>
+                            <th>IIR</th>
+                            <th>DMTT</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taxCalendarBody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color overdue"></div>
+                    <span>逾期 (Overdue)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color urgent"></div>
+                    <span>7日内到期 (Within 7 days)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color upcoming"></div>
+                    <span>本月到期 (This month)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color completed"></div>
+                    <span>已完成 (Completed)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color pending"></div>
+                    <span>待申报 (Pending)</span>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">新增申报记录</h2>
+                <button class="modal-close" onclick="closeModal('addModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="taxForm">
+                    <input type="hidden" id="editId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>辖区 *</label>
+                            <select id="formCountry" required>
+                                <option value="">请选择辖区</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>税种类型 *</label>
+                            <select id="formTaxType" required>
+                                <option value="">请选择税种</option>
+                                <option value="annual_cit">年度所得税申报</option>
+                                <option value="rpt_details">关联交易明细表</option>
+                                <option value="cbcr">CBCR Notification</option>
+                                <option value="local_file">Local File</option>
+                                <option value="gir">GIR</option>
+                                <option value="iir">IIR</option>
+                                <option value="dmtt">DMTT</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>截止日期 *</label>
+                            <input type="date" id="formDueDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>申报期间</label>
+                            <input type="text" id="formPeriod" placeholder="如: 2025年度">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>状态</label>
+                        <select id="formStatus">
+                            <option value="pending">待申报</option>
+                            <option value="completed">已完成</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <textarea id="formNotes" placeholder="其他注意事项..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addModal')">取消</button>
+                <button class="btn btn-primary" onclick="saveTaxRecord()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>申报详情</h2>
+                <button class="modal-close" onclick="closeModal('detailModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="detailContent">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="deleteRecord()">删除</button>
+                <button class="btn btn-primary" onclick="editRecord()">编辑</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Reminder Modal -->
+    <div class="modal-overlay" id="reminderModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:.4rem;vertical-align:middle;">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    截止日期提醒
+                </h2>
+                <button class="modal-close" onclick="closeModal('reminderModal')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem;" id="reminderSubtitle">以下申报项目将在 <strong>10天内</strong> 截止，请及时处理：</p>
+                <div class="reminder-list" id="reminderList"></div>
+                <div style="margin-top:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
+                    <label style="font-size:.8rem;color:var(--text-muted);display:flex;align-items:center;gap:.4rem;cursor:pointer;">
+                        <input type="checkbox" id="enableBrowserNotif" onchange="toggleBrowserNotification(this.checked)">
+                        开启浏览器桌面通知
+                    </label>
+                    <button class="btn btn-secondary" onclick="closeModal('reminderModal')" style="font-size:.85rem;">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+    
+        <script>
+        // ============ Configuration ============
+        // Share mode: encode data into URL (no backend needed, works in any network)
+        const SHARE_VERSION = 1; // deprecated, kept for compatibility
+        
+        /**
+         * Get the base URL for share links.
+         * Priority: user-configured base URL > current page URL > fallback
+         */
+        // Base URL functions removed - using jsonstore.io cloud sync instead
+            // Check if user has configured a base URL
+            const configuredBaseUrl = localStorage.getItem('taxCalendar_baseUrl');
+            if (configuredBaseUrl && configuredBaseUrl.trim()) {
+                let url = configuredBaseUrl.trim();
+                // Remove trailing hash or search
+                url = url.split('#')[0].split('?')[0];
+                // Ensure ends with .html or /
+                if (!url.endsWith('.html') && !url.endsWith('/')) {
+                    url += '/';
+                }
+                return url;
+            }
+            // Fallback to current page URL
+            if (window.location.origin && window.location.origin !== 'null') {
+                return `${window.location.origin}${window.location.pathname}`;
+            }
+            // Last resort: return empty (will show warning)
+            return '';
+        }
+        
+        /**
+         * Save the base URL setting and update the status display.
+         */
+        // saveBaseUrl removed
+            const input = document.getElementById('baseUrlInput');
+            const status = document.getElementById('baseUrlStatus');
+            const url = input.value.trim();
+            
+            if (!url) {
+                localStorage.removeItem('taxCalendar_baseUrl');
+                status.textContent = '已清除自定义URL';
+                status.style.color = 'var(--text-muted)';
+                return;
+            }
+            
+            // Basic validation
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                status.textContent = '⚠️ URL必须以 http:// 或 https:// 开头';
+                status.style.color = 'var(--error-color)';
+                return;
+            }
+            
+            localStorage.setItem('taxCalendar_baseUrl', url);
+            status.textContent = '✓ 已保存';
+            status.style.color = 'var(--success-color)';
+            showToast('基准URL已保存', 'success');
+        }
+        
+        /**
+         * Initialize the base URL input field in the sync modal.
+         */
+        // initBaseUrlInput removed
+            const input = document.getElementById('baseUrlInput');
+            const status = document.getElementById('baseUrlStatus');
+            const saved = localStorage.getItem('taxCalendar_baseUrl');
+            
+            if (saved) {
+                input.value = saved;
+                status.textContent = '已配置';
+                status.style.color = 'var(--success-color)';
+            } else if (window.location.origin && window.location.origin !== 'null') {
+                status.textContent = `当前页面: ${window.location.href.split('#')[0]}`;
+                status.style.color = 'var(--text-muted)';
+            } else {
+                status.textContent = '⚠️ 本地文件需配置';
+                status.style.color = 'var(--warning-color, #f59e0b)';
+            }
+        }
+        
+        // ============ State ============
+        let appData = {
+            taxRecords: {}
+        };
+        
+        let currentFilters = {
+            year: 2026,
+            month: 0,
+            quarter: 0,
+            taxType: 'all',
+            country: 'all'
+        };
+        
+        let currentDetailId = null;
+        
+        // ============ jsonstore.io Cloud Sync ============
+        // 使用固定的 API key，所有用户共享同一份数据
+        const CLOUD_SYNC_URL = 'https://jsonstore.io/b6kp9h3h7k8g7h6j5k4l3m2n1o0p9q8r';
+        
+        let cloudSyncState = {
+            connected: false,
+            lastSync: null,
+            isSyncing: false
+        };
+        
+        /**
+         * 加载云端数据
+         */
+        async function loadFromCloud() {
+            try {
+                const response = await fetch(CLOUD_SYNC_URL, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const data = await response.json();
+                if (data && data.records) {
+                    // 合并云端数据
+                    const cloudRecords = data.records;
+                    const localRecords = appData.taxRecords;
+                    
+                    // 本地有新数据但云端没有的，保留本地
+                    for (const key in localRecords) {
+                        if (!cloudRecords[key]) {
+                            cloudRecords[key] = localRecords[key];
+                        }
+                    }
+                    
+                    appData.taxRecords = cloudRecords;
+                    cloudSyncState.lastSync = new Date().toISOString();
+                    saveLocalData();
+                    
+                    showToast('✓ 云端数据已同步', 'success', 2000);
+                    return true;
+                }
+            } catch (error) {
+                console.log('云端同步失败（离线模式）:', error.message);
+                return false;
+            }
+        }
+        
+        /**
+         * 保存数据到云端
+         */
+        async function saveToCloud() {
+            if (cloudSyncState.isSyncing) return;
+            cloudSyncState.isSyncing = true;
+            
+            try {
+                const payload = {
+                    records: appData.taxRecords,
+                    updatedAt: Date.now(),
+                    updatedBy: 'user'
+                };
+                
+                const response = await fetch(CLOUD_SYNC_URL, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) throw new Error('Failed to save');
+                
+                cloudSyncState.lastSync = new Date().toISOString();
+                cloudSyncState.connected = true;
+                updateCloudSyncStatus();
+            } catch (error) {
+                console.log('保存到云端失败:', error.message);
+                // 保存到本地存储作为备份
+                saveLocalData();
+            } finally {
+                cloudSyncState.isSyncing = false;
+            }
+        }
+        
+        /**
+         * 更新云端同步状态显示
+         */
+        function updateCloudSyncStatus() {
+            const statusEl = document.getElementById('syncStatus');
+            const textEl = document.getElementById('syncStatusText');
+            
+            if (cloudSyncState.connected) {
+                statusEl.classList.add('connected');
+                textEl.textContent = '已同步';
+                statusEl.title = `最后同步: ${cloudSyncState.lastSync ? new Date(cloudSyncState.lastSync).toLocaleString('zh-CN') : '未知'}`;
+            } else {
+                statusEl.classList.remove('connected');
+                textEl.textContent = '离线';
+            }
+        }
+        
+        /**
+         * 初始化云端同步（页面加载时）
+         */
+        async function initCloudSync() {
+            const loaded = await loadFromCloud();
+            if (!loaded) {
+                // 云端加载失败，尝试本地数据
+                loadLocalData();
+            }
+        }
+        
+        // ============ Tax Types (Simplified) ============
+        const taxTypes = {
+            annual_cit: { name: '年度所得税申报', nameEn: 'Annual CIT', category: 'cit' },
+            rpt_details: { name: '关联交易明细表', nameEn: 'RPT Details', category: 'tp' },
+            cbcr: { name: 'CBCR Notification', nameEn: 'CBCR', category: 'tp' },
+            local_file: { name: 'Local File', nameEn: 'Local File', category: 'tp' },
+            gir: { name: 'GIR', nameEn: 'GIR', category: 'p2' },
+            iir: { name: 'IIR', nameEn: 'IIR', category: 'p2' },
+            dmtt: { name: 'DMTT', nameEn: 'DMTT', category: 'p2' }
+        };
+        
+        // ============ Countries ============
+        const countries = [
+            { code: 'CN', name: '中国', flag: '🇨🇳', nameEn: 'China' },
+            { code: 'SG', name: '新加坡', flag: '🇸🇬', nameEn: 'Singapore' },
+            { code: 'HK', name: '香港', flag: '🇭🇰', nameEn: 'Hong Kong' },
+            { code: 'FI', name: '芬兰', flag: '🇫🇮', nameEn: 'Finland' },
+            { code: 'VN', name: '越南', flag: '🇻🇳', nameEn: 'Vietnam' },
+            { code: 'TR', name: '土耳其', flag: '🇹🇷', nameEn: 'Turkey' },
+            { code: 'TW', name: '台北', flag: '🇹🇼', nameEn: 'Taipei' },
+            { code: 'IN', name: '印度', flag: '🇮🇳', nameEn: 'India' },
+            { code: 'BR', name: '巴西', flag: '🇧🇷', nameEn: 'Brazil' },
+            { code: 'FR', name: '法国', flag: '🇫🇷', nameEn: 'France' },
+            { code: 'US', name: '美国', flag: '🇺🇸', nameEn: 'United States' },
+            { code: 'TH', name: '泰国', flag: '🇹🇭', nameEn: 'Thailand' },
+            { code: 'PH', name: '菲律宾', flag: '🇵🇭', nameEn: 'Philippines' },
+            { code: 'KR', name: '韩国', flag: '🇰🇷', nameEn: 'Korea' },
+            { code: 'JP', name: '日本', flag: '🇯🇵', nameEn: 'Japan' }
+        ];
+        
+        // ============ Default Data ============
+        function getDefaultData() {
+            return {
+                'CN-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
+                ],
+                'CN-rpt_details-2026': [
+                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
+                ],
+                'CN-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
+                ],
+                'CN-local_file-2026': [
+                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
+                ],
+                'CN-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'SG-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
+                ],
+                'SG-rpt_details-2026': [
+                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
+                ],
+                'SG-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'SG-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'SG-dmtt-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'HK-annual_cit-2026': [
+                    { period: '2024/25年度', dueDate: '2026-04-03', status: 'pending', notes: '' }
+                ],
+                'HK-rpt_details-2026': [
+                    { period: '2025年度', dueDate: '2026-09-30', status: 'pending', notes: '' }
+                ],
+                'HK-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'FI-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-04-01', status: 'pending', notes: '' }
+                ],
+                'FI-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'FI-dmtt-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'VN-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
+                ],
+                'VN-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'VN-local_file-2026': [
+                    { period: '2025年度', dueDate: '2026-10-31', status: 'pending', notes: '' }
+                ],
+                'TR-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-04-30', status: 'pending', notes: '' }
+                ],
+                'TR-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'TW-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
+                ],
+                'TW-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
+                ],
+                'TW-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'IN-annual_cit-2026': [
+                    { period: '2025-26年度', dueDate: '2026-10-31', status: 'pending', notes: '' }
+                ],
+                'IN-cbcr-2026': [
+                    { period: '2025-26年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
+                ],
+                'IN-local_file-2026': [
+                    { period: '2025-26年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
+                ],
+                'IN-iir-2026': [
+                    { period: '2025-26年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'IN-dmtt-2026': [
+                    { period: '2025-26年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'BR-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
+                ],
+                'BR-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-07-31', status: 'pending', notes: '' }
+                ],
+                'BR-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'FR-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
+                ],
+                'FR-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'FR-local_file-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'FR-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'FR-dmtt-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'US-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-03-16', status: 'pending', notes: '' }
+                ],
+                'US-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'US-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'TH-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
+                ],
+                'TH-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-09-30', status: 'pending', notes: '' }
+                ],
+                'TH-local_file-2026': [
+                    { period: '2025年度', dueDate: '2026-09-30', status: 'pending', notes: '' }
+                ],
+                'PH-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-04-15', status: 'pending', notes: '' }
+                ],
+                'PH-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'PH-local_file-2026': [
+                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
+                ],
+                'KR-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
+                ],
+                'KR-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'KR-local_file-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'KR-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'KR-dmtt-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'JP-annual_cit-2026': [
+                    { period: '2025年度', dueDate: '2026-02-16', status: 'pending', notes: '' }
+                ],
+                'JP-cbcr-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'JP-local_file-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ],
+                'JP-iir-2026': [
+                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                ]
+            };
+        }
+        
+        // ============ Initialization ============
+        document.addEventListener('DOMContentLoaded', async function() {
+            // 初始化云端同步（自动从云端加载数据）
+            await initCloudSync();
+            
+            updateDateTime();
+            populateCountryFilters();
+            renderTable();
+            updateStats();
+            updateCloudSyncStatus();
+            
+            // Check reminders on load
+            autoCheckReminders();
+            
+            // Auto-refresh every minute
+            setInterval(() => {
+                updateDateTime();
+                updateStats();
+                updateReminderBadge();
+                // 后台静默同步
+                loadFromCloud();
+            }, 60000);
+        });
+        
+        // ============ Local Storage ============
+        function loadLocalData() {
+            const saved = localStorage.getItem('globalTaxCalendar_v2');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    appData.taxRecords = { ...getDefaultData(), ...parsed };
+                } catch (e) {
+                    appData.taxRecords = getDefaultData();
+                }
+            } else {
+                appData.taxRecords = getDefaultData();
+            }
+        }
+        
+        function saveLocalData() {
+            localStorage.setItem('globalTaxCalendar_v2', JSON.stringify(appData.taxRecords));
+        }
+        
+        // ============ Date/Time ============
+        function updateDateTime() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                weekday: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            document.getElementById('currentDateTime').textContent = now.toLocaleDateString('zh-CN', options);
+        }
+        
+        // ============ Filters ============
+        function populateCountryFilters() {
+            const select = document.getElementById('countryFilter');
+            select.innerHTML = '<option value="all">全部辖区</option>';
+            countries.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.code;
+                option.textContent = `${c.flag} ${c.name} (${c.nameEn})`;
+                select.appendChild(option);
+            });
+            
+            // Also populate form country
+            const formCountry = document.getElementById('formCountry');
+            formCountry.innerHTML = '<option value="">请选择辖区</option>';
+            countries.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.code;
+                option.textContent = `${c.flag} ${c.name} (${c.nameEn})`;
+                formCountry.appendChild(option);
+            });
+        }
+        
+        function resetFilters() {
+            document.getElementById('yearFilter').value = '2026';
+            document.getElementById('monthFilter').value = '0';
+            document.getElementById('quarterFilter').value = '0';
+            document.getElementById('taxTypeFilter').value = 'all';
+            document.getElementById('countryFilter').value = 'all';
+            
+            currentFilters = {
+                year: 2026,
+                month: 0,
+                quarter: 0,
+                taxType: 'all',
+                country: 'all'
+            };
+            
+            renderTable();
+            updateStats();
+        }
+        
+        // ============ Status Calculation ============
+        function calculateStatus(dueDate, currentStatus) {
+            if (currentStatus === 'completed') return 'completed';
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const due = new Date(dueDate);
+            due.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 0) return 'overdue';
+            if (diffDays <= 10) return 'urgent';
+            if (diffDays <= 30) return 'upcoming';
+            return 'pending';
+        }
+        
+        function getStatusLabel(status) {
+            const labels = {
+                overdue: '逾期',
+                urgent: '即将到期',
+                upcoming: '本月到期',
+                completed: '已完成',
+                pending: '待申报'
+            };
+            return labels[status] || status;
+        }
+        
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return `${date.getMonth() + 1}月${date.getDate()}日`;
+        }
+        
+        // ============ Table Rendering ============
+        function renderTable() {
+            const tbody = document.getElementById('taxCalendarBody');
+            tbody.innerHTML = '';
+            
+            const taxTypeOrder = [
+                'annual_cit', 'rpt_details', 'cbcr', 'local_file', 'gir', 'iir', 'dmtt'
+            ];
+            
+            countries.forEach(country => {
+                if (currentFilters.country !== 'all' && country.code !== currentFilters.country) return;
+                
+                const row = document.createElement('tr');
+                
+                // Country cell
+                const countryCell = document.createElement('td');
+                countryCell.innerHTML = `
+                    <div class="country-name">
+                        <span class="country-flag">${country.flag}</span>
+                        <div>
+                            <div>${country.name}</div>
+                            <span class="country-code">${country.nameEn}</span>
+                        </div>
+                    </div>
+                `;
+                row.appendChild(countryCell);
+                
+                // Tax type cells
+                taxTypeOrder.forEach(taxType => {
+                    if (currentFilters.taxType !== 'all') {
+                        const category = taxTypes[taxType]?.category;
+                        if (category !== currentFilters.taxType) {
+                            const placeholderCell = document.createElement('td');
+                            placeholderCell.innerHTML = '<span style="color: var(--text-muted);">-</span>';
+                            row.appendChild(placeholderCell);
+                            return;
+                        }
+                    }
+                    
+                    const cell = document.createElement('td');
+                    cell.className = 'tax-cell';
+                    
+                    const key = `${country.code}-${taxType}-${currentFilters.year}`;
+                    const records = appData.taxRecords[key] || [];
+                    
+                    if (records.length === 0) {
+                        cell.innerHTML = '<span style="color: var(--text-muted);">-</span>';
+                    } else {
+                        let displayRecords = records;
+                        
+                        if (currentFilters.month > 0) {
+                            displayRecords = records.filter(r => {
+                                const date = new Date(r.dueDate);
+                                return date.getMonth() + 1 === currentFilters.month;
+                            });
+                        } else if (currentFilters.quarter > 0) {
+                            displayRecords = records.filter(r => {
+                                const date = new Date(r.dueDate);
+                                const month = date.getMonth() + 1;
+                                const quarter = Math.ceil(month / 3);
+                                return quarter === currentFilters.quarter;
+                            });
+                        }
+                        
+                        if (displayRecords.length === 0) {
+                            cell.innerHTML = '<span style="color: var(--text-muted);">-</span>';
+                        } else {
+                            const sortedRecords = [...displayRecords].sort((a, b) => 
+                                new Date(a.dueDate) - new Date(b.dueDate)
+                            );
+                            const record = sortedRecords[0];
+                            const status = calculateStatus(record.dueDate, record.status);
+                            
+                            cell.innerHTML = `
+                                <div class="tax-item ${status}" onclick="showDetail('${key}', ${displayRecords.indexOf(record)})">
+                                    <span class="tax-date">${formatDate(record.dueDate)}</span>
+                                    <span class="tax-type">${getStatusLabel(status)}</span>
+                                </div>
+                                ${displayRecords.length > 1 ? `<div style="font-size: 0.625rem; color: var(--text-muted);">+${displayRecords.length - 1}更多</div>` : ''}
+                            `;
+                        }
+                    }
+                    
+                    cell.onclick = () => {
+                        if (cell.querySelector('.tax-item')) {
+                            const key = `${country.code}-${taxType}-${currentFilters.year}`;
+                            showDetail(key, 0);
+                        } else {
+                            openAddModal(country.code, taxType);
+                        }
+                    };
+                    
+                    row.appendChild(cell);
+                });
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        // ============ Statistics ============
+        function updateStats() {
+            let overdue = 0, urgent = 0, upcoming = 0, completed = 0, total = 0;
+            
+            Object.entries(appData.taxRecords).forEach(([key, records]) => {
+                if (key.startsWith('_')) return; // Skip meta fields
+                
+                const yearMatch = key.includes(String(currentFilters.year));
+                if (!yearMatch) return;
+                
+                records.forEach(record => {
+                    if (currentFilters.month > 0) {
+                        const date = new Date(record.dueDate);
+                        if (date.getMonth() + 1 !== currentFilters.month) return;
+                    }
+                    
+                    if (currentFilters.quarter > 0) {
+                        const date = new Date(record.dueDate);
+                        const month = date.getMonth() + 1;
+                        const quarter = Math.ceil(month / 3);
+                        if (quarter !== currentFilters.quarter) return;
+                    }
+                    
+                    const status = calculateStatus(record.dueDate, record.status);
+                    total++;
+                    if (status === 'overdue') overdue++;
+                    else if (status === 'urgent') urgent++;
+                    else if (status === 'upcoming') upcoming++;
+                    else if (status === 'completed') completed++;
+                });
+            });
+            
+            document.getElementById('statOverdue').textContent = overdue;
+            document.getElementById('statUrgent').textContent = urgent;
+            document.getElementById('statUpcoming').textContent = upcoming;
+            document.getElementById('statCompleted').textContent = completed;
+            document.getElementById('statTotal').textContent = total;
+        }
+        
+        // ============ Modals ============
+        function showDetail(key, index) {
+            const [country, taxType, year] = key.split('-');
+            const records = appData.taxRecords[key];
+            if (!records || records.length === 0) return;
+            
+            currentDetailId = { key, index };
+            
+            const countryData = countries.find(c => c.code === country);
+            const taxData = taxTypes[taxType];
+            
+            const content = document.getElementById('detailContent');
+            content.innerHTML = `
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="font-size: 1.5rem; font-weight: 600;">${countryData?.flag || ''} ${countryData?.name || country}</div>
+                    <div style="color: var(--text-secondary);">${taxData?.name || taxType} (${taxData?.nameEn || ''})</div>
+                </div>
+                
+                <div style="display: grid; gap: 1rem;">
+                    ${records.map((record, i) => {
+                        const status = calculateStatus(record.dueDate, record.status);
+                        return `
+                            <div style="padding: 1rem; background: var(--bg); border-radius: 8px; border-left: 4px solid ${getStatusColor(status)};">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <span style="font-weight: 600;">${record.period || '申报期间'}</span>
+                                    <span class="tax-item ${status}" style="display: inline-block;">${getStatusLabel(status)}</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
+                                    <div>
+                                        <span style="color: var(--text-secondary);">截止日期:</span>
+                                        <span style="font-weight: 500;">${record.dueDate}</span>
+                                    </div>
+                                    <div>
+                                        <span style="color: var(--text-secondary);">状态:</span>
+                                        <select onchange="updateRecordStatus('${key}', ${i}, this.value)" style="padding: 0.25rem 0.5rem;">
+                                            <option value="pending" ${record.status === 'pending' ? 'selected' : ''}>待申报</option>
+                                            <option value="completed" ${record.status === 'completed' ? 'selected' : ''}>已完成</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                ${record.notes ? `<div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">备注: ${record.notes}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            
+            openModal('detailModal');
+        }
+        
+        function getStatusColor(status) {
+            const colors = {
+                overdue: '#c53030',
+                urgent: '#c05621',
+                upcoming: '#975a16',
+                completed: '#276749',
+                pending: '#718096'
+            };
+            return colors[status] || '#718096';
+        }
+        
+        function updateRecordStatus(key, index, status) {
+            if (appData.taxRecords[key] && appData.taxRecords[key][index]) {
+                appData.taxRecords[key][index].status = status;
+                saveLocalData();
+                saveToCloud();
+                renderTable();
+                updateStats();
+                showDetail(key, index);
+                showToast('状态已更新', 'success');
+            }
+        }
+        
+        function openAddModal(preselectCountry = '', preselectTaxType = '') {
+            document.getElementById('modalTitle').textContent = '新增申报记录';
+            document.getElementById('taxForm').reset();
+            document.getElementById('editId').value = '';
+            
+            if (preselectCountry) {
+                document.getElementById('formCountry').value = preselectCountry;
+            }
+            if (preselectTaxType) {
+                document.getElementById('formTaxType').value = preselectTaxType;
+            }
+            
+            openModal('addModal');
+        }
+        
+        function editRecord() {
+            if (currentDetailId) {
+                closeModal('detailModal');
+                const [country, taxType, year] = currentDetailId.key.split('-');
+                openAddModal(country, taxType, currentDetailId.index);
+            }
+        }
+        
+        function deleteRecord() {
+            if (currentDetailId && confirm('确定要删除这条记录吗？')) {
+                const { key, index } = currentDetailId;
+                if (appData.taxRecords[key]) {
+                    appData.taxRecords[key].splice(index, 1);
+                    if (appData.taxRecords[key].length === 0) {
+                        delete appData.taxRecords[key];
+                    }
+                    saveLocalData();
+                    saveToCloud();
+                    renderTable();
+                    updateStats();
+                    closeModal('detailModal');
+                    showToast('记录已删除', 'success');
+                }
+            }
+        }
+        
+        function saveTaxRecord() {
+            const country = document.getElementById('formCountry').value;
+            const taxType = document.getElementById('formTaxType').value;
+            const dueDate = document.getElementById('formDueDate').value;
+            const period = document.getElementById('formPeriod').value;
+            const status = document.getElementById('formStatus').value;
+            const notes = document.getElementById('formNotes').value;
+            
+            if (!country || !taxType || !dueDate) {
+                showToast('请填写必填项', 'error');
+                return;
+            }
+            
+            const year = dueDate.split('-')[0];
+            const key = `${country}-${taxType}-${year}`;
+            
+            if (!appData.taxRecords[key]) {
+                appData.taxRecords[key] = [];
+            }
+            
+            appData.taxRecords[key].push({
+                period,
+                dueDate,
+                status,
+                notes
+            });
+            
+            appData.taxRecords[key].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            
+            saveLocalData();
+            saveToCloud();
+            closeModal('addModal');
+            renderTable();
+            updateStats();
+            showToast('申报记录已保存', 'success');
+        }
+        
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+        
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+        
+        // ============ Filter Event Listeners ============
+        document.getElementById('yearFilter').addEventListener('change', function() {
+            currentFilters.year = parseInt(this.value);
+            renderTable();
+            updateStats();
+        });
+        
+        document.getElementById('monthFilter').addEventListener('change', function() {
+            currentFilters.month = parseInt(this.value);
+            if (this.value !== '0') {
+                document.getElementById('quarterFilter').value = '0';
+                currentFilters.quarter = 0;
+            }
+            renderTable();
+            updateStats();
+        });
+        
+        document.getElementById('quarterFilter').addEventListener('change', function() {
+            currentFilters.quarter = parseInt(this.value);
+            if (this.value !== '0') {
+                document.getElementById('monthFilter').value = '0';
+                currentFilters.month = 0;
+            }
+            renderTable();
+            updateStats();
+        });
+        
+        document.getElementById('taxTypeFilter').addEventListener('change', function() {
+            currentFilters.taxType = this.value;
+            renderTable();
+        });
+        
+        document.getElementById('countryFilter').addEventListener('change', function() {
+            currentFilters.country = this.value;
+            renderTable();
+        });
+        
+        // ============ Export Functions ============
+        function exportToExcel() {
+            const data = [];
+            data.push(['辖区', '国家(英文)', '税种', '申报期间', '截止日期', '状态', '备注']);
+            
+            Object.entries(appData.taxRecords).forEach(([key, records]) => {
+                if (key.startsWith('_')) return;
+                const [country, taxType, year] = key.split('-');
+                const countryData = countries.find(c => c.code === country);
+                const taxData = taxTypes[taxType];
+                
+                records.forEach(record => {
+                    const status = calculateStatus(record.dueDate, record.status);
+                    data.push([
+                        `${countryData?.flag || ''} ${countryData?.name || country}`,
+                        countryData?.nameEn || country,
+                        `${taxData?.name || taxType} (${taxData?.nameEn || ''})`,
+                        record.period || '',
+                        record.dueDate,
+                        getStatusLabel(status),
+                        record.notes || ''
+                    ]);
+                });
+            });
+            
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '全球税收日历');
+            
+            ws['!cols'] = [
+                { wch: 20 }, { wch: 15 }, { wch: 25 },
+                { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 30 }
+            ];
+            
+            XLSX.writeFile(wb, `全球税收日历_${currentFilters.year}.xlsx`);
+            showToast('Excel文件已导出', 'success');
+        }
+        
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text('全球税收日历 | Global Tax Calendar', 14, 20);
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`年份: ${currentFilters.year} | 导出日期: ${new Date().toLocaleDateString('zh-CN')}`, 14, 28);
+            
+            const tableData = [];
+            
+            Object.entries(appData.taxRecords).forEach(([key, records]) => {
+                if (key.startsWith('_')) return;
+                const [country, taxType, year] = key.split('-');
+                const countryData = countries.find(c => c.code === country);
+                const taxData = taxTypes[taxType];
+                
+                records.forEach(record => {
+                    const status = calculateStatus(record.dueDate, record.status);
+                    tableData.push([
+                        `${countryData?.flag || ''} ${countryData?.name || country}`,
+                        taxData?.name || taxType,
+                        record.period || '',
+                        record.dueDate,
+                        getStatusLabel(status),
+                        record.notes || ''
+                    ]);
+                });
+            });
+            
+            doc.autoTable({
+                head: [['辖区', '税种', '申报期间', '截止日期', '状态', '备注']],
+                body: tableData,
+                startY: 35,
+                styles: { fontSize: 8, cellPadding: 3 },
+                headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold' },
+                columnStyles: {
+                    0: { cellWidth: 25 }, 1: { cellWidth: 30 },
+                    2: { cellWidth: 25 }, 3: { cellWidth: 25 },
+                    4: { cellWidth: 20 }, 5: { cellWidth: 'auto' }
+                }
+            });
+            
+            doc.save(`全球税收日历_${currentFilters.year}.pdf`);
+            showToast('PDF文件已导出', 'success');
+        }
+        
+        // ============ Reminder System ============
+        const REMINDER_DAYS = 10;          // Days before due to remind
+        const REMINDER_LS_KEY = 'globalTaxCalendar_reminderDate'; // track daily remind
+
+        /**
+         * Collect all records due within REMINDER_DAYS days (not completed, not overdue).
+         * Returns array sorted by daysLeft asc.
+         */
+        function getUpcomingReminders() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const results = [];
+
+            Object.entries(appData.taxRecords).forEach(([key, records]) => {
+                if (key.startsWith('_')) return;
+                const [countryCode, taxTypeKey] = key.split('-');
+                const countryData = countries.find(c => c.code === countryCode);
+                const taxData = taxTypes[taxTypeKey];
+
+                records.forEach((record, idx) => {
+                    if (record.status === 'completed') return;
+                    const due = new Date(record.dueDate);
+                    due.setHours(0, 0, 0, 0);
+                    const daysLeft = Math.ceil((due - today) / 86400000);
+                    if (daysLeft >= 0 && daysLeft <= REMINDER_DAYS) {
+                        results.push({
+                            key, idx, daysLeft,
+                            dueDate: record.dueDate,
+                            period: record.period || '',
+                            country: countryData ? `${countryData.flag} ${countryData.name}` : countryCode,
+                            taxName: taxData ? taxData.name : taxTypeKey
+                        });
+                    }
+                });
+            });
+
+            results.sort((a, b) => a.daysLeft - b.daysLeft);
+            return results;
+        }
+
+        /** Update bell badge count */
+        function updateReminderBadge() {
+            const count = getUpcomingReminders().length;
+            const btn = document.getElementById('reminderBtn');
+            if (!btn) return;
+
+            // Remove old badge
+            const old = btn.querySelector('.reminder-badge');
+            if (old) old.remove();
+
+            if (count > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'reminder-badge';
+                badge.textContent = count > 99 ? '99+' : count;
+                btn.appendChild(badge);
+            }
+        }
+
+        /** Render the reminder list inside the modal */
+        function renderReminderList() {
+            const list = document.getElementById('reminderList');
+            const subtitle = document.getElementById('reminderSubtitle');
+            const items = getUpcomingReminders();
+
+            if (items.length === 0) {
+                list.innerHTML = `
+                    <div class="reminder-empty">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:block;margin:0 auto .5rem;">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        太棒了！未来10天内没有待处理的截止申报 🎉
+                    </div>`;
+                subtitle.innerHTML = '未来 <strong>10天内</strong> 暂无截止申报';
+                return;
+            }
+
+            subtitle.innerHTML = `以下 <strong>${items.length}</strong> 项申报将在 <strong>10天内</strong> 截止，请及时处理：`;
+
+            list.innerHTML = items.map(item => {
+                const colorClass = item.daysLeft <= 3 ? 'red' : item.daysLeft <= 7 ? 'orange' : 'yellow';
+                const itemClass = `days-${item.daysLeft}`;
+                const daysText = item.daysLeft === 0 ? '今天' : `${item.daysLeft}天`;
+                const dateFormatted = new Date(item.dueDate).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' });
+                return `
+                    <div class="reminder-item ${itemClass}" onclick="closeModal('reminderModal'); showDetail('${item.key}', ${item.idx});" title="点击查看详情">
+                        <div class="reminder-days ${colorClass}">
+                            ${daysText}
+                            <span>${item.daysLeft === 0 ? '截止' : '后截止'}</span>
+                        </div>
+                        <div class="reminder-info">
+                            <strong>${item.country} · ${item.taxName}</strong>
+                            <small>${item.period}${item.period ? ' · ' : ''}截止 ${dateFormatted}</small>
+                        </div>
+                        <div class="reminder-date">${item.dueDate}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        /** Open reminder modal */
+        function openReminderModal() {
+            renderReminderList();
+            // Sync browser notification checkbox state
+            const cb = document.getElementById('enableBrowserNotif');
+            if (cb) cb.checked = Notification.permission === 'granted';
+            openModal('reminderModal');
+        }
+
+        /** Toggle browser desktop notification permission */
+        function toggleBrowserNotification(enable) {
+            if (!enable) return;
+            if (!('Notification' in window)) {
+                showToast('您的浏览器不支持桌面通知', 'error');
+                document.getElementById('enableBrowserNotif').checked = false;
+                return;
+            }
+            Notification.requestPermission().then(permission => {
+                const cb = document.getElementById('enableBrowserNotif');
+                if (permission === 'granted') {
+                    showToast('桌面通知已开启 🔔', 'success');
+                    if (cb) cb.checked = true;
+                    triggerBrowserNotifications();
+                } else {
+                    showToast('未获得通知权限，请在浏览器设置中允许', 'error');
+                    if (cb) cb.checked = false;
+                }
+            });
+        }
+
+        /** Fire browser Notification for each upcoming item */
+        function triggerBrowserNotifications() {
+            if (Notification.permission !== 'granted') return;
+            const items = getUpcomingReminders();
+            if (items.length === 0) return;
+
+            // Group into one summary notification to avoid spam
+            const title = `📅 税务截止提醒：${items.length} 项即将到期`;
+            const body = items.slice(0, 5).map(i =>
+                `• ${i.country} ${i.taxName}（${i.daysLeft === 0 ? '今天' : `${i.daysLeft}天后`}，${i.dueDate}）`
+            ).join('\n') + (items.length > 5 ? `\n...等共 ${items.length} 项` : '');
+
+            new Notification(title, {
+                body,
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📅</text></svg>',
+                tag: 'tax-reminder'
+            });
+        }
+
+        /**
+         * Auto-remind on page load: show toast + update badge.
+         * Only shows the full modal once per calendar day.
+         */
+        function autoCheckReminders() {
+            updateReminderBadge();
+
+            const items = getUpcomingReminders();
+            if (items.length === 0) return;
+
+            // Toast summary (always)
+            const urgentCount = items.filter(i => i.daysLeft <= 3).length;
+            if (urgentCount > 0) {
+                showToast(`🔴 有 ${urgentCount} 项申报将在3天内截止！点击"提醒"查看`, 'error');
+            } else {
+                showToast(`🔔 有 ${items.length} 项申报将在10天内截止`, 'info');
+            }
+
+            // Modal: only once per day
+            const today = new Date().toDateString();
+            const lastShown = localStorage.getItem(REMINDER_LS_KEY);
+            if (lastShown !== today) {
+                localStorage.setItem(REMINDER_LS_KEY, today);
+                // Slight delay so page finishes rendering first
+                setTimeout(() => {
+                    renderReminderList();
+                    openModal('reminderModal');
+                }, 800);
+            }
+
+            // Browser notification if already granted
+            triggerBrowserNotifications();
+        }
+
+        // ============ Toast ============
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = {
+                success: '<polyline points="20 6 9 17 4 12"></polyline>',
+                error:   '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
+                info:    '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>',
+                warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>'
+            };
+            toast.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    ${icons[type] || icons.info}
+                </svg>
+                ${message}
+            `;
+            container.appendChild(toast);
+            
+            const duration = (type === 'error' || type === 'warning') ? 5000 : 3000;
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity .3s';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        // ============ Utilities ============
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
+        });
+        
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                    modal.classList.remove('active');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
