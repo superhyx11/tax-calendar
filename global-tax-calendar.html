@@ -440,6 +440,16 @@
             opacity: 0.8;
         }
         
+        /* Table Title */
+        .table-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+        
         /* Legend */
         .legend {
             display: flex;
@@ -912,39 +922,13 @@
     <div class="toolbar">
         <div class="toolbar-content">
             <div class="filter-group">
-                <label class="filter-label">年份:</label>
+                <label class="filter-label">财年:</label>
                 <select id="yearFilter">
-                    <option value="2025">2025</option>
-                    <option value="2026" selected>2026</option>
-                    <option value="2027">2027</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">月份:</label>
-                <select id="monthFilter">
-                    <option value="0">全年</option>
-                    <option value="1">1月</option>
-                    <option value="2">2月</option>
-                    <option value="3">3月</option>
-                    <option value="4">4月</option>
-                    <option value="5">5月</option>
-                    <option value="6">6月</option>
-                    <option value="7">7月</option>
-                    <option value="8">8月</option>
-                    <option value="9">9月</option>
-                    <option value="10">10月</option>
-                    <option value="11">11月</option>
-                    <option value="12">12月</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">季度:</label>
-                <select id="quarterFilter">
-                    <option value="0">全部季度</option>
-                    <option value="1">Q1 (1-3月)</option>
-                    <option value="2">Q2 (4-6月)</option>
-                    <option value="3">Q3 (7-9月)</option>
-                    <option value="4">Q4 (10-12月)</option>
+                    <option value="2024">FY2024</option>
+                    <option value="2025" selected>FY2025</option>
+                    <option value="2026">FY2026</option>
+                    <option value="2027">FY2027</option>
+                    <option value="2028">FY2028</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -978,6 +962,14 @@
                         <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
                     </svg>
                     提醒
+                </button>
+                <button class="btn btn-secondary" onclick="openJurisdictionModal()" title="管理辖区">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                    管理辖区
                 </button>
                 <button class="btn btn-primary" onclick="openAddModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1023,6 +1015,7 @@
         </div>
         
         <div class="table-container">
+            <div class="table-title" id="tableTitle">📅 FY2026 财年申报截止日期</div>
             <div class="table-scroll">
                 <table id="taxCalendar">
                     <thead>
@@ -1189,6 +1182,59 @@
             </div>
         </div>
     </div>
+    
+    <!-- Jurisdiction Management Modal -->
+    <div class="modal-overlay" id="jurisdictionModal">
+        <div class="modal" style="max-width:600px;">
+            <div class="modal-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:.4rem;vertical-align:middle;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                    管理辖区
+                </h2>
+                <button class="modal-close" onclick="closeModal('jurisdictionModal')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem;">添加或删除辖区。删除辖区将同时删除该辖区所有财年的申报数据。</p>
+                
+                <!-- Add Jurisdiction -->
+                <div style="background:var(--bg);padding:1rem;border-radius:8px;margin-bottom:1rem;">
+                    <h4 style="font-size:.9rem;margin-bottom:.75rem;">添加新辖区</h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.75rem;align-items:end;">
+                        <div>
+                            <label style="display:block;font-size:.75rem;color:var(--text-muted);margin-bottom:.25rem;">国家代码</label>
+                            <input type="text" id="newJurCode" placeholder="如 AU" maxlength="3" style="width:100%;text-transform:uppercase;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:.75rem;color:var(--text-muted);margin-bottom:.25rem;">国家名称</label>
+                            <input type="text" id="newJurName" placeholder="如 澳大利亚" style="width:100%;">
+                        </div>
+                        <button class="btn btn-success" onclick="addJurisdiction()" style="white-space:nowrap;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            添加
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Jurisdiction List -->
+                <div id="jurisdictionList" style="max-height:300px;overflow-y:auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('jurisdictionModal')">关闭</button>
+            </div>
+        </div>
+    </div>
 
     <div class="toast-container" id="toastContainer"></div>
     
@@ -1277,9 +1323,7 @@
         };
         
         let currentFilters = {
-            year: 2026,
-            month: 0,
-            quarter: 0,
+            year: 2025,  // 默认显示2025财年
             taxType: 'all',
             country: 'all'
         };
@@ -1706,174 +1750,135 @@
         ];
         
         // ============ Default Data ============
-        function getDefaultData() {
-            return {
-                'CN-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
+        // 生成跨多个财年的默认数据
+        // 逻辑：财年N的申报截止日期通常在N+1年或N+2年
+        function generateDefaultData() {
+            const data = {};
+            
+            // 财年配置: [财年, 申报年度描述, 基准年份(截止日期年份)]
+            const fiscalYears = [
+                { fy: 2025, period: '2025年度', baseYear: 2026 },
+                { fy: 2026, period: '2026年度', baseYear: 2027 },
+                { fy: 2027, period: '2027年度', baseYear: 2028 },
+                { fy: 2028, period: '2028年度', baseYear: 2029 }
+            ];
+            
+            // 获取当前存在的辖区列表
+            const availableCountries = countries.map(c => c.code);
+            
+            // 每个辖区的税种配置: [税种key, 年度截止日期月份, 截止日期日]
+            const taxConfigs = {
+                'CN': [
+                    ['annual_cit', '05', '31'],     // 5月31日
+                    ['rpt_details', '06', '30'],   // 6月30日
+                    ['cbcr', '06', '30'],           // 6月30日
+                    ['local_file', '06', '30'],    // 6月30日
+                    ['iir', '12', '31']            // 12月31日
                 ],
-                'CN-rpt_details-2026': [
-                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
+                'SG': [
+                    ['annual_cit', '11', '30'],    // 11月30日
+                    ['rpt_details', '03', '31'],   // 3月31日
+                    ['cbcr', '12', '31'],          // 12月31日
+                    ['iir', '06', '30'],           // 次年6月30日(IIR)
+                    ['dmtt', '12', '31']           // 12月31日
                 ],
-                'CN-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
+                'HK': [
+                    ['annual_cit', '04', '03'],    // 4月3日
+                    ['rpt_details', '09', '30'],   // 9月30日
+                    ['cbcr', '12', '31']           // 12月31日
                 ],
-                'CN-local_file-2026': [
-                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
+                'FI': [
+                    ['annual_cit', '04', '01'],    // 4月1日
+                    ['iir', '12', '31'],           // 12月31日
+                    ['dmtt', '12', '31']           // 12月31日
                 ],
-                'CN-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                'VN': [
+                    ['annual_cit', '03', '31'],    // 3月31日
+                    ['cbcr', '12', '31'],          // 12月31日
+                    ['local_file', '10', '31']     // 10月31日
                 ],
-                'SG-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
+                'TR': [
+                    ['annual_cit', '04', '30'],    // 4月30日
+                    ['cbcr', '12', '31']           // 12月31日
                 ],
-                'SG-rpt_details-2026': [
-                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
+                'TW': [
+                    ['annual_cit', '05', '31'],    // 5月31日
+                    ['cbcr', '11', '30'],          // 11月30日
+                    ['iir', '12', '31']            // 12月31日
                 ],
-                'SG-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                'IN': [
+                    ['annual_cit', '10', '31'],    // 10月31日
+                    ['cbcr', '11', '30'],          // 11月30日
+                    ['local_file', '11', '30'],   // 11月30日
+                    ['iir', '12', '31'],           // 12月31日
+                    ['dmtt', '12', '31']           // 12月31日
                 ],
-                'SG-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                'BR': [
+                    ['annual_cit', '06', '30'],    // 6月30日
+                    ['cbcr', '07', '31'],          // 7月31日
+                    ['iir', '12', '31']            // 12月31日
                 ],
-                'SG-dmtt-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                'FR': [
+                    ['annual_cit', '05', '31'],    // 5月31日
+                    ['cbcr', '12', '31'],          // 12月31日
+                    ['local_file', '12', '31'],   // 12月31日
+                    ['iir', '12', '31'],           // 12月31日
+                    ['dmtt', '12', '31']           // 12月31日
                 ],
-                'HK-annual_cit-2026': [
-                    { period: '2024/25年度', dueDate: '2026-04-03', status: 'pending', notes: '' }
+                'US': [
+                    ['annual_cit', '03', '16'],    // 3月15日
+                    ['cbcr', '12', '31'],          // 12月31日
+                    ['iir', '12', '31']            // 12月31日
                 ],
-                'HK-rpt_details-2026': [
-                    { period: '2025年度', dueDate: '2026-09-30', status: 'pending', notes: '' }
+                'TH': [
+                    ['annual_cit', '05', '31'],    // 5月31日
+                    ['cbcr', '09', '30'],          // 9月30日
+                    ['local_file', '09', '30']     // 9月30日
                 ],
-                'HK-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                'PH': [
+                    ['annual_cit', '04', '15'],    // 4月15日
+                    ['cbcr', '12', '31'],          // 12月31日
+                    ['local_file', '03', '31']     // 3月31日
                 ],
-                'FI-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-04-01', status: 'pending', notes: '' }
+                'KR': [
+                    ['annual_cit', '03', '31'],    // 3月31日
+                    ['cbcr', '12', '31'],          // 12月31日
+                    ['local_file', '12', '31'],   // 12月31日
+                    ['iir', '12', '31'],           // 12月31日
+                    ['dmtt', '12', '31']           // 12月31日
                 ],
-                'FI-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'FI-dmtt-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'VN-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
-                ],
-                'VN-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'VN-local_file-2026': [
-                    { period: '2025年度', dueDate: '2026-10-31', status: 'pending', notes: '' }
-                ],
-                'TR-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-04-30', status: 'pending', notes: '' }
-                ],
-                'TR-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'TW-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
-                ],
-                'TW-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
-                ],
-                'TW-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'IN-annual_cit-2026': [
-                    { period: '2025-26年度', dueDate: '2026-10-31', status: 'pending', notes: '' }
-                ],
-                'IN-cbcr-2026': [
-                    { period: '2025-26年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
-                ],
-                'IN-local_file-2026': [
-                    { period: '2025-26年度', dueDate: '2026-11-30', status: 'pending', notes: '' }
-                ],
-                'IN-iir-2026': [
-                    { period: '2025-26年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'IN-dmtt-2026': [
-                    { period: '2025-26年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'BR-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-06-30', status: 'pending', notes: '' }
-                ],
-                'BR-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-07-31', status: 'pending', notes: '' }
-                ],
-                'BR-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'FR-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
-                ],
-                'FR-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'FR-local_file-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'FR-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'FR-dmtt-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'US-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-03-16', status: 'pending', notes: '' }
-                ],
-                'US-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'US-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'TH-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-05-31', status: 'pending', notes: '' }
-                ],
-                'TH-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-09-30', status: 'pending', notes: '' }
-                ],
-                'TH-local_file-2026': [
-                    { period: '2025年度', dueDate: '2026-09-30', status: 'pending', notes: '' }
-                ],
-                'PH-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-04-15', status: 'pending', notes: '' }
-                ],
-                'PH-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'PH-local_file-2026': [
-                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
-                ],
-                'KR-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-03-31', status: 'pending', notes: '' }
-                ],
-                'KR-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'KR-local_file-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'KR-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'KR-dmtt-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'JP-annual_cit-2026': [
-                    { period: '2025年度', dueDate: '2026-02-16', status: 'pending', notes: '' }
-                ],
-                'JP-cbcr-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'JP-local_file-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
-                ],
-                'JP-iir-2026': [
-                    { period: '2025年度', dueDate: '2026-12-31', status: 'pending', notes: '' }
+                'JP': [
+                    ['annual_cit', '02', '16'],    // 2月15日左右
+                    ['cbcr', '12', '31'],          // 12月31日
+                    ['local_file', '12', '31'],   // 12月31日
+                    ['iir', '12', '31']            // 12月31日
                 ]
             };
+            
+            // 遍历每个财年
+            fiscalYears.forEach(({ fy, period, baseYear }) => {
+                // 只为当前存在的辖区生成数据
+                availableCountries.forEach(country => {
+                    const taxes = taxConfigs[country];
+                    if (taxes) {
+                        taxes.forEach(([taxType, month, day]) => {
+                            const key = `${country}-${taxType}-${fy}`;
+                            data[key] = [{
+                                period: period,
+                                dueDate: `${baseYear}-${month}-${day}`,
+                                status: 'pending',
+                                notes: ''
+                            }];
+                        });
+                    }
+                });
+            });
+            
+            return data;
+        }
+        
+        function getDefaultData() {
+            return generateDefaultData();
         }
         
         // ============ Initialization ============
@@ -1881,11 +1886,16 @@
             // 1. 先加载本地数据（保证刷新不丢失）
             loadLocalData();
             
-            // 2. 再从云端拉取最新数据并更新
+            // 2. 加载自定义辖区
+            loadCustomJurisdictions();
+            
+            // 3. 再从云端拉取最新数据并更新
             await syncFromCloud();
             
             updateDateTime();
             populateCountryFilters();
+            // 更新表格标题
+            document.getElementById('tableTitle').textContent = `📅 FY${currentFilters.year} 财年申报截止日期`;
             renderTable();
             updateStats();
             updateCloudSyncStatus();
@@ -1909,21 +1919,23 @@
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    // 优先使用保存的用户数据，避免每次都加载默认数据
+                    // 优先使用保存的用户数据
                     if (parsed && Object.keys(parsed).length > 0) {
                         appData.taxRecords = parsed;
                         logSync('从本地存储加载数据，共', Object.keys(parsed).length, '条记录');
                     } else {
-                        appData.taxRecords = getDefaultData();
-                        logSync('本地数据为空，使用默认数据');
+                        appData.taxRecords = {};
+                        logSync('本地数据为空，使用空白数据');
                     }
                 } catch (e) {
-                    appData.taxRecords = getDefaultData();
-                    logSync('本地数据解析失败，使用默认数据');
+                    appData.taxRecords = {};
+                    logSync('本地数据解析失败，使用空白数据');
                 }
             } else {
+                // 首次使用，初始化默认数据但标记为"已初始化"
                 appData.taxRecords = getDefaultData();
-                logSync('无本地数据，使用默认数据');
+                localStorage.setItem('globalTaxCalendar_initialized', 'true');
+                logSync('首次使用，加载默认数据');
             }
         }
         
@@ -1968,19 +1980,18 @@
         }
         
         function resetFilters() {
-            document.getElementById('yearFilter').value = '2026';
-            document.getElementById('monthFilter').value = '0';
-            document.getElementById('quarterFilter').value = '0';
+            document.getElementById('yearFilter').value = '2025';
             document.getElementById('taxTypeFilter').value = 'all';
             document.getElementById('countryFilter').value = 'all';
             
             currentFilters = {
-                year: 2026,
-                month: 0,
-                quarter: 0,
+                year: 2025,
                 taxType: 'all',
                 country: 'all'
             };
+            
+            // 更新表格标题
+            document.getElementById('tableTitle').textContent = `📅 FY${currentFilters.year} 财年申报截止日期`;
             
             renderTable();
             updateStats();
@@ -2067,39 +2078,19 @@
                     if (records.length === 0) {
                         cell.innerHTML = '<span style="color: var(--text-muted);">-</span>';
                     } else {
-                        let displayRecords = records;
+                        const sortedRecords = [...records].sort((a, b) => 
+                            new Date(a.dueDate) - new Date(b.dueDate)
+                        );
+                        const record = sortedRecords[0];
+                        const status = calculateStatus(record.dueDate, record.status);
                         
-                        if (currentFilters.month > 0) {
-                            displayRecords = records.filter(r => {
-                                const date = new Date(r.dueDate);
-                                return date.getMonth() + 1 === currentFilters.month;
-                            });
-                        } else if (currentFilters.quarter > 0) {
-                            displayRecords = records.filter(r => {
-                                const date = new Date(r.dueDate);
-                                const month = date.getMonth() + 1;
-                                const quarter = Math.ceil(month / 3);
-                                return quarter === currentFilters.quarter;
-                            });
-                        }
-                        
-                        if (displayRecords.length === 0) {
-                            cell.innerHTML = '<span style="color: var(--text-muted);">-</span>';
-                        } else {
-                            const sortedRecords = [...displayRecords].sort((a, b) => 
-                                new Date(a.dueDate) - new Date(b.dueDate)
-                            );
-                            const record = sortedRecords[0];
-                            const status = calculateStatus(record.dueDate, record.status);
-                            
-                            cell.innerHTML = `
-                                <div class="tax-item ${status}" onclick="showDetail('${key}', ${displayRecords.indexOf(record)})">
-                                    <span class="tax-date">${formatDate(record.dueDate)}</span>
-                                    <span class="tax-type">${getStatusLabel(status)}</span>
-                                </div>
-                                ${displayRecords.length > 1 ? `<div style="font-size: 0.625rem; color: var(--text-muted);">+${displayRecords.length - 1}更多</div>` : ''}
-                            `;
-                        }
+                        cell.innerHTML = `
+                            <div class="tax-item ${status}" onclick="showDetail('${key}', ${records.indexOf(record)})">
+                                <span class="tax-date">${formatDate(record.dueDate)}</span>
+                                <span class="tax-type">${getStatusLabel(status)}</span>
+                            </div>
+                            ${sortedRecords.length > 1 ? `<div style="font-size: 0.625rem; color: var(--text-muted);">+${sortedRecords.length - 1}更多</div>` : ''}
+                        `;
                     }
                     
                     cell.onclick = () => {
@@ -2129,18 +2120,6 @@
                 if (!yearMatch) return;
                 
                 records.forEach(record => {
-                    if (currentFilters.month > 0) {
-                        const date = new Date(record.dueDate);
-                        if (date.getMonth() + 1 !== currentFilters.month) return;
-                    }
-                    
-                    if (currentFilters.quarter > 0) {
-                        const date = new Date(record.dueDate);
-                        const month = date.getMonth() + 1;
-                        const quarter = Math.ceil(month / 3);
-                        if (quarter !== currentFilters.quarter) return;
-                    }
-                    
                     const status = calculateStatus(record.dueDate, record.status);
                     total++;
                     if (status === 'overdue') overdue++;
@@ -2372,26 +2351,8 @@
         // ============ Filter Event Listeners ============
         document.getElementById('yearFilter').addEventListener('change', function() {
             currentFilters.year = parseInt(this.value);
-            renderTable();
-            updateStats();
-        });
-        
-        document.getElementById('monthFilter').addEventListener('change', function() {
-            currentFilters.month = parseInt(this.value);
-            if (this.value !== '0') {
-                document.getElementById('quarterFilter').value = '0';
-                currentFilters.quarter = 0;
-            }
-            renderTable();
-            updateStats();
-        });
-        
-        document.getElementById('quarterFilter').addEventListener('change', function() {
-            currentFilters.quarter = parseInt(this.value);
-            if (this.value !== '0') {
-                document.getElementById('monthFilter').value = '0';
-                currentFilters.month = 0;
-            }
+            // 更新表格标题
+            document.getElementById('tableTitle').textContent = `📅 FY${currentFilters.year} 财年申报截止日期`;
             renderTable();
             updateStats();
         });
@@ -2492,6 +2453,161 @@
             
             doc.save(`全球税收日历_${currentFilters.year}.pdf`);
             showToast('PDF文件已导出', 'success');
+        }
+        
+        // ============ Jurisdiction Management ============
+        function openJurisdictionModal() {
+            document.getElementById('jurisdictionModal').classList.add('active');
+            renderJurisdictionList();
+        }
+        
+        function renderJurisdictionList() {
+            const container = document.getElementById('jurisdictionList');
+            if (countries.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:1rem;">暂无辖区</p>';
+                return;
+            }
+            
+            container.innerHTML = countries.map(c => `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem;background:var(--white);border:1px solid var(--border);border-radius:6px;margin-bottom:.5rem;">
+                    <div style="display:flex;align-items:center;gap:.75rem;">
+                        <span style="font-size:1.25rem;">${c.flag}</span>
+                        <div>
+                            <div style="font-weight:600;">${c.name}</div>
+                            <div style="font-size:.75rem;color:var(--text-muted);">${c.code} - ${c.nameEn || ''}</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="deleteJurisdiction('${c.code}')" style="padding:.375rem .75rem;font-size:.75rem;color:#c53030;border-color:#fed7d7;" title="删除此辖区">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        删除
+                    </button>
+                </div>
+            `).join('');
+        }
+        
+        function addJurisdiction() {
+            const code = document.getElementById('newJurCode').value.trim().toUpperCase();
+            const name = document.getElementById('newJurName').value.trim();
+            
+            if (!code || !name) {
+                showToast('请填写国家代码和名称', 'error');
+                return;
+            }
+            
+            if (code.length > 3) {
+                showToast('国家代码最多3个字符', 'error');
+                return;
+            }
+            
+            // 检查是否已存在
+            if (countries.find(c => c.code === code)) {
+                showToast(`辖区 ${code} 已存在`, 'error');
+                return;
+            }
+            
+            // 添加辖区
+            const newCountry = {
+                code: code,
+                name: name,
+                flag: '🌐',
+                nameEn: name
+            };
+            countries.push(newCountry);
+            
+            // 为新辖区生成所有财年的默认数据
+            const fiscalYears = [2025, 2026, 2027, 2028];
+            fiscalYears.forEach(fy => {
+                const period = `${fy}年度`;
+                const baseYear = fy + 1;
+                const taxTypesForCountry = [
+                    ['annual_cit', '05', '31'],
+                    ['cbcr', '12', '31'],
+                    ['iir', '12', '31']
+                ];
+                taxTypesForCountry.forEach(([taxType, month, day]) => {
+                    const key = `${code}-${taxType}-${fy}`;
+                    appData.taxRecords[key] = [{
+                        period: period,
+                        dueDate: `${baseYear}-${month}-${day}`,
+                        status: 'pending',
+                        notes: ''
+                    }];
+                });
+            });
+            
+            // 保存并刷新
+            saveLocalData();
+            saveCustomJurisdictions();
+            populateCountryFilters();
+            renderTable();
+            updateStats();
+            
+            // 清空输入
+            document.getElementById('newJurCode').value = '';
+            document.getElementById('newJurName').value = '';
+            
+            renderJurisdictionList();
+            showToast(`已添加辖区: ${name} (${code})`, 'success');
+        }
+        
+        function deleteJurisdiction(code) {
+            if (!confirm(`确定要删除辖区 ${code} 吗？\n\n这将同时删除该辖区所有财年的申报数据。`)) {
+                return;
+            }
+            
+            // 找到辖区名称用于提示
+            const country = countries.find(c => c.code === code);
+            const countryName = country ? country.name : code;
+            
+            // 从列表中移除
+            const index = countries.findIndex(c => c.code === code);
+            if (index > -1) {
+                countries.splice(index, 1);
+            }
+            
+            // 删除该辖区所有税种的数据
+            Object.keys(appData.taxRecords).forEach(key => {
+                if (key.startsWith(code + '-')) {
+                    delete appData.taxRecords[key];
+                }
+            });
+            
+            // 保存并刷新
+            saveLocalData();
+            saveCustomJurisdictions();
+            populateCountryFilters();
+            renderTable();
+            updateStats();
+            renderJurisdictionList();
+            
+            showToast(`已删除辖区: ${countryName} (${code})`, 'success');
+        }
+        
+        function saveCustomJurisdictions() {
+            localStorage.setItem('taxCalendar_customJurisdictions', JSON.stringify(countries));
+        }
+        
+        function loadCustomJurisdictions() {
+            const saved = localStorage.getItem('taxCalendar_customJurisdictions');
+            if (saved) {
+                try {
+                    const custom = JSON.parse(saved);
+                    if (Array.isArray(custom) && custom.length > 0) {
+                        // 合并默认辖区和自定义辖区
+                        const defaultCodes = ['CN', 'SG', 'HK', 'FI', 'VN', 'TR', 'TW', 'IN', 'BR', 'FR', 'US', 'TH', 'PH', 'KR', 'JP'];
+                        custom.forEach(c => {
+                            if (!countries.find(existing => existing.code === c.code)) {
+                                countries.push(c);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to load custom jurisdictions:', e);
+                }
+            }
         }
         
         // ============ Reminder System ============
