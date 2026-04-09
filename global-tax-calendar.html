@@ -265,12 +265,16 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: var(--text-muted);
+            background: #f59e0b; /* 橙色表示未配置 */
         }
         
         .sync-status.connected .dot {
             background: #276749;
             animation: pulse 2s infinite;
+        }
+        
+        .sync-status.error .dot {
+            background: #c53030;
         }
         
         @keyframes pulse {
@@ -898,7 +902,7 @@
                 <span>总计:</span>
                 <span class="stat-badge" style="background: var(--primary); color: white;" id="statTotal">0</span>
             </div>
-            <div class="sync-status" id="syncStatus">
+            <div class="sync-status" id="syncStatus" onclick="handleSyncStatusClick()" style="cursor: pointer;" title="点击查看云同步设置">
                 <span class="dot"></span>
                 <span id="syncStatusText">本地模式</span>
             </div>
@@ -1282,49 +1286,111 @@
         
         let currentDetailId = null;
         
-        // ============ jsonstore.io Cloud Sync ============
-        // 使用固定的 API key，所有用户共享同一份数据
-        const CLOUD_SYNC_URL = 'https://jsonstore.io/b6kp9h3h7k8g7h6j5k4l3m2n1o0p9q8r';
+        // ============ JSONBin Cloud Sync ============
+        // 使用 JSONBin.io - 稳定的免费 JSON 存储服务
+        // 需要先在 https://jsonbin.io 注册获取 API Key
+        // 所有用户使用同一个 Collection ID 和 API Key 共享数据
+        const JSONBIN_BIN_ID = localStorage.getItem('taxCalendar_jsonbin_id') || '';
+        const JSONBIN_API_KEY = localStorage.getItem('taxCalendar_jsonbin_key') || '';
+        const CLOUD_SYNC_URL = JSONBIN_BIN_ID 
+            ? `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`
+            : null;
         
         let cloudSyncState = {
             connected: false,
             lastSync: null,
-            isSyncing: false
+            isSyncing: false,
+            syncError: null
         };
+        
+        /**
+         * 调试：打印同步状态
+         */
+        function logSync(msg, data) {
+            console.log(`[云同步] ${msg}`, data || '');
+        }
         
         /**
          * 加载云端数据
          */
-        async function loadFromCloud() {
+        async function loadFromCloud(showToastMsg = false) {
             try {
+                logSync('开始加载云端数据...');
+                
                 const response = await fetch(CLOUD_SYNC_URL, {
                     method: 'GET',
+                    headers: {
+                        'X-Mantle-Key': MANTLE_KEY,
+                        'Content-Type': 'application/json'
+                    },
                     cache: 'no-cache'
                 });
-                if (!response.ok) throw new Error('Network response was not ok');
+                
+                logSync('云端响应状态:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 
                 const data = await response.json();
-                if (data && data.records) {
-                    // 合并云端数据
-                    const cloudRecords = data.records;
-                    const localRecords = appData.taxRecords;
+                logSync('云端返回数据长度:', JSON.stringify(data).length, '字节');
+                
+                if (data && typeof data === 'object') {
+                    // 使用返回的数据作为云端记录
+                    let cloudRecords = data.records || data;
                     
-                    // 本地有新数据但云端没有的，保留本地
-                    for (const key in localRecords) {
-                        if (!cloudRecords[key]) {
-                            cloudRecords[key] = localRecords[key];
+                    // 过滤掉元数据字段，只保留真正的记录
+                    const filteredRecords = {};
+                    for (const key in cloudRecords) {
+                        if (!key.startsWith('_') && key !== 'updatedAt' && key !== 'updatedBy' && key !== 'version') {
+                            filteredRecords[key] = cloudRecords[key];
                         }
                     }
                     
-                    appData.taxRecords = cloudRecords;
-                    cloudSyncState.lastSync = new Date().toISOString();
-                    saveLocalData();
-                    
-                    showToast('✓ 云端数据已同步', 'success', 2000);
-                    return true;
+                    if (Object.keys(filteredRecords).length > 0) {
+                        // 合并云端数据
+                        const localRecords = appData.taxRecords;
+                        
+                        // 本地有新数据但云端没有的，保留本地
+                        for (const key in localRecords) {
+                            if (!filteredRecords[key]) {
+                                filteredRecords[key] = localRecords[key];
+                                logSync(`保留本地独有数据: ${key}`);
+                            }
+                        }
+                        
+                        appData.taxRecords = filteredRecords;
+                        cloudSyncState.lastSync = new Date().toISOString();
+                        cloudSyncState.connected = true;
+                        cloudSyncState.syncError = null;
+                        saveLocalData();
+                        
+                        // 重新渲染表格以显示最新数据
+                        renderTable();
+                        updateStats();
+                        updateCloudSyncStatus();
+                        
+                        if (showToastMsg) {
+                            showToast('✓ 云端数据已同步', 'success');
+                        }
+                        logSync('云端数据加载成功，共', Object.keys(filteredRecords).length, '条记录');
+                        return true;
+                    }
                 }
+                
+                logSync('云端数据为空，将保存本地数据');
+                // 云端没有数据，保存本地数据到云端
+                await saveToCloud();
+                return false;
             } catch (error) {
-                console.log('云端同步失败（离线模式）:', error.message);
+                logSync('加载云端数据失败:', error);
+                cloudSyncState.syncError = error.message;
+                cloudSyncState.connected = false;
+                updateCloudSyncStatus();
+                
+                if (showToastMsg) {
+                    showToast('云端同步失败，使用本地数据', 'warning');
+                }
                 return false;
             }
         }
@@ -1333,31 +1399,50 @@
          * 保存数据到云端
          */
         async function saveToCloud() {
-            if (cloudSyncState.isSyncing) return;
+            if (cloudSyncState.isSyncing) {
+                logSync('正在同步中，跳过本次保存');
+                return;
+            }
             cloudSyncState.isSyncing = true;
             
             try {
                 const payload = {
-                    records: appData.taxRecords,
-                    updatedAt: Date.now(),
-                    updatedBy: 'user'
+                    ...appData.taxRecords,
+                    _meta: {
+                        updatedAt: Date.now(),
+                        updatedBy: 'user',
+                        version: 2
+                    }
                 };
+                
+                logSync('保存数据到云端:', Object.keys(appData.taxRecords).length, '条记录');
                 
                 const response = await fetch(CLOUD_SYNC_URL, {
                     method: 'PUT',
                     headers: {
+                        'X-Mantle-Key': MANTLE_KEY,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(payload)
                 });
                 
-                if (!response.ok) throw new Error('Failed to save');
+                logSync('保存响应状态:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 
                 cloudSyncState.lastSync = new Date().toISOString();
                 cloudSyncState.connected = true;
+                cloudSyncState.syncError = null;
                 updateCloudSyncStatus();
+                
+                logSync('数据保存到云端成功');
             } catch (error) {
-                console.log('保存到云端失败:', error.message);
+                logSync('保存到云端失败:', error);
+                cloudSyncState.syncError = error.message;
+                cloudSyncState.connected = false;
+                updateCloudSyncStatus();
                 // 保存到本地存储作为备份
                 saveLocalData();
             } finally {
@@ -1372,25 +1457,222 @@
             const statusEl = document.getElementById('syncStatus');
             const textEl = document.getElementById('syncStatusText');
             
-            if (cloudSyncState.connected) {
+            if (!isCloudSyncConfigured()) {
+                statusEl.classList.remove('connected');
+                textEl.textContent = '本地模式';
+                statusEl.title = '点击配置云同步，数据将自动备份到云端';
+            } else if (cloudSyncState.connected && !cloudSyncState.syncError) {
                 statusEl.classList.add('connected');
-                textEl.textContent = '已同步';
-                statusEl.title = `最后同步: ${cloudSyncState.lastSync ? new Date(cloudSyncState.lastSync).toLocaleString('zh-CN') : '未知'}`;
+                const lastSyncText = cloudSyncState.lastSync 
+                    ? new Date(cloudSyncState.lastSync).toLocaleTimeString('zh-CN')
+                    : '同步中';
+                textEl.textContent = `已同步 ${lastSyncText}`;
+                statusEl.title = `最后同步: ${cloudSyncState.lastSync ? new Date(cloudSyncState.lastSync).toLocaleString('zh-CN') : '未知'}，点击刷新`;
+            } else if (cloudSyncState.syncError) {
+                statusEl.classList.remove('connected');
+                statusEl.classList.add('error');
+                textEl.textContent = '同步失败';
+                statusEl.title = `错误: ${cloudSyncState.syncError}`;
             } else {
                 statusEl.classList.remove('connected');
                 textEl.textContent = '离线';
+                statusEl.title = '未连接到云端';
             }
         }
         
         /**
-         * 初始化云端同步（页面加载时）
+         * 检查是否已配置云同步
+         */
+        function isCloudSyncConfigured() {
+            return JSONBIN_API_KEY && JSONBIN_BIN_ID;
+        }
+        
+        /**
+         * 获取云端同步配置说明
+         */
+        function getCloudSyncSetupInfo() {
+            return `
+【JSONBin.io 免费云同步设置步骤】：
+
+1. 访问 https://jsonbin.io 注册账号（支持 GitHub/Google 登录）
+
+2. 登录后点击 "Create a new Collection"，创建 Collection
+   - 填写 Collection Name，例如：全球税务日历
+   - 选择 "Public"（公开访问）
+
+3. 点击 Collection 进入，点击 "Create Binary/JSON Bin"
+   - 选择 "JSON" 类型
+   - 初始内容填：{"_placeholder": "请勿删除此行"}（只是占位）
+   - 点击保存
+
+4. 复制以下信息：
+   - Collection ID（在 Collection URL 中，例如：https://jsonbin.io/xxxxx）
+   - Master API Key（在 Account Settings → API Keys → Master Key）
+
+5. 在浏览器控制台执行以下代码配置：
+   localStorage.setItem('taxCalendar_jsonbin_id', '你的CollectionID');
+   localStorage.setItem('taxCalendar_jsonbin_key', '你的MasterAPIKey');
+
+6. 刷新页面即可使用云同步！
+
+【重要提示】：
+- 将 Collection 设置为 "Public" 后，团队成员只需要知道 Collection ID 即可访问
+- Master API Key 用于写入数据，请勿泄露给不信任的人
+- 数据免费存储，无时间限制
+            `;
+        }
+        
+        /**
+         * 从云端同步数据（作为增量更新）
+         * 本地数据作为基础，云端数据更新后覆盖本地
+         * 每次刷新页面都会调用，保证拿到最新数据
+         */
+        async function syncFromCloud() {
+            // 如果未配置云同步，静默跳过
+            if (!isCloudSyncConfigured()) {
+                logSync('云同步未配置，跳过同步');
+                cloudSyncState.connected = false;
+                cloudSyncState.syncError = '请先配置 JSONBin 云同步';
+                updateCloudSyncStatus();
+                return false;
+            }
+            
+            try {
+                logSync('开始同步云端数据...');
+                
+                const response = await fetch(CLOUD_SYNC_URL, {
+                    method: 'GET',
+                    headers: {
+                        'X-Access-Key': JSONBIN_API_KEY
+                    },
+                    cache: 'no-cache'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                logSync('云端响应:', JSON.stringify(result).substring(0, 300));
+                
+                // JSONBin 返回格式：{ record: {...}, metadata: {...} }
+                const data = result.record || result;
+                
+                // 过滤元数据字段
+                const filteredRecords = {};
+                for (const key in data) {
+                    if (!key.startsWith('_') && key !== 'updatedAt' && key !== 'updatedBy' && key !== 'version') {
+                        filteredRecords[key] = data[key];
+                    }
+                }
+                
+                if (Object.keys(filteredRecords).length > 0) {
+                    // 云端有数据，用云端数据更新 appData
+                    let updated = false;
+                    for (const key in filteredRecords) {
+                        appData.taxRecords[key] = filteredRecords[key];
+                        updated = true;
+                    }
+                    
+                    if (updated) {
+                        // 保存到本地作为备份
+                        saveLocalData();
+                        // 更新界面
+                        renderTable();
+                        updateStats();
+                        logSync('云端数据同步成功，共', Object.keys(filteredRecords).length, '条记录');
+                    }
+                    
+                    cloudSyncState.connected = true;
+                    cloudSyncState.lastSync = new Date().toISOString();
+                    cloudSyncState.syncError = null;
+                } else {
+                    // 云端为空（只有占位数据），保存本地数据到云端
+                    logSync('云端为空，保存本地数据到云端');
+                    await saveToCloud();
+                }
+                
+                updateCloudSyncStatus();
+                return true;
+            } catch (error) {
+                logSync('同步失败（使用本地数据）:', error.message);
+                cloudSyncState.syncError = error.message;
+                cloudSyncState.connected = false;
+                updateCloudSyncStatus();
+                return false;
+            }
+        }
+        
+        /**
+         * 保存数据到云端
+         */
+        async function saveToCloud() {
+            if (!isCloudSyncConfigured()) {
+                logSync('云同步未配置，跳过保存');
+                return;
+            }
+            
+            if (cloudSyncState.isSyncing) {
+                logSync('正在同步中，跳过本次保存');
+                return;
+            }
+            cloudSyncState.isSyncing = true;
+            
+            try {
+                const payload = appData.taxRecords;
+                
+                logSync('保存数据到云端:', Object.keys(payload).length, '条记录');
+                
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'X-Access-Key': JSONBIN_API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                cloudSyncState.lastSync = new Date().toISOString();
+                cloudSyncState.connected = true;
+                cloudSyncState.syncError = null;
+                updateCloudSyncStatus();
+                
+                logSync('数据保存到云端成功');
+            } catch (error) {
+                logSync('保存到云端失败:', error.message);
+                cloudSyncState.syncError = error.message;
+                cloudSyncState.connected = false;
+                updateCloudSyncStatus();
+                // 保存到本地存储作为备份
+                saveLocalData();
+            } finally {
+                cloudSyncState.isSyncing = false;
+            }
+        }
+        
+        /**
+         * 强制刷新云端数据（供用户手动触发）
+         */
+        async function forceRefreshFromCloud() {
+            if (!isCloudSyncConfigured()) {
+                showToast('请先配置 JSONBin 云同步！点击同步状态查看设置说明', 'warning');
+                console.log(getCloudSyncSetupInfo());
+                return;
+            }
+            showToast('正在刷新云端数据...', 'info');
+            await syncFromCloud();
+            showToast('✓ 同步完成', 'success');
+        }
+        
+        /**
+         * 初始化云端同步（页面加载时）- 保留兼容性
          */
         async function initCloudSync() {
-            const loaded = await loadFromCloud();
-            if (!loaded) {
-                // 云端加载失败，尝试本地数据
-                loadLocalData();
-            }
+            await syncFromCloud();
         }
         
         // ============ Tax Types (Simplified) ============
@@ -1596,8 +1878,11 @@
         
         // ============ Initialization ============
         document.addEventListener('DOMContentLoaded', async function() {
-            // 初始化云端同步（自动从云端加载数据）
-            await initCloudSync();
+            // 1. 先加载本地数据（保证刷新不丢失）
+            loadLocalData();
+            
+            // 2. 再从云端拉取最新数据并更新
+            await syncFromCloud();
             
             updateDateTime();
             populateCountryFilters();
@@ -1613,8 +1898,8 @@
                 updateDateTime();
                 updateStats();
                 updateReminderBadge();
-                // 后台静默同步
-                loadFromCloud();
+                // 后台静默同步（不显示toast）
+                syncFromCloud();
             }, 60000);
         });
         
@@ -1624,12 +1909,21 @@
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    appData.taxRecords = { ...getDefaultData(), ...parsed };
+                    // 优先使用保存的用户数据，避免每次都加载默认数据
+                    if (parsed && Object.keys(parsed).length > 0) {
+                        appData.taxRecords = parsed;
+                        logSync('从本地存储加载数据，共', Object.keys(parsed).length, '条记录');
+                    } else {
+                        appData.taxRecords = getDefaultData();
+                        logSync('本地数据为空，使用默认数据');
+                    }
                 } catch (e) {
                     appData.taxRecords = getDefaultData();
+                    logSync('本地数据解析失败，使用默认数据');
                 }
             } else {
                 appData.taxRecords = getDefaultData();
+                logSync('无本地数据，使用默认数据');
             }
         }
         
@@ -1936,26 +2230,54 @@
             }
         }
         
-        function openAddModal(preselectCountry = '', preselectTaxType = '') {
-            document.getElementById('modalTitle').textContent = '新增申报记录';
+        /**
+         * 打开新增/编辑申报记录弹窗
+         * @param {string} preselectCountry - 预选国家
+         * @param {string} preselectTaxType - 预选税种
+         * @param {number} editIndex - 编辑模式下的记录索引
+         * @param {string} editKey - 编辑模式下的记录key
+         */
+        function openAddModal(preselectCountry = '', preselectTaxType = '', editIndex = null, editKey = '') {
             document.getElementById('taxForm').reset();
-            document.getElementById('editId').value = '';
             
-            if (preselectCountry) {
-                document.getElementById('formCountry').value = preselectCountry;
-            }
-            if (preselectTaxType) {
-                document.getElementById('formTaxType').value = preselectTaxType;
+            if (editIndex !== null && editKey && appData.taxRecords[editKey]) {
+                // 编辑模式：填充现有数据
+                document.getElementById('modalTitle').textContent = '编辑申报记录';
+                document.getElementById('editId').value = editKey + '|' + editIndex;
+                
+                const record = appData.taxRecords[editKey][editIndex];
+                const [country, taxType, year] = editKey.split('-');
+                
+                document.getElementById('formCountry').value = country;
+                document.getElementById('formTaxType').value = taxType;
+                document.getElementById('formDueDate').value = record.dueDate || '';
+                document.getElementById('formPeriod').value = record.period || '';
+                document.getElementById('formStatus').value = record.status || 'pending';
+                document.getElementById('formNotes').value = record.notes || '';
+            } else {
+                // 新增模式
+                document.getElementById('modalTitle').textContent = '新增申报记录';
+                document.getElementById('editId').value = '';
+                
+                if (preselectCountry) {
+                    document.getElementById('formCountry').value = preselectCountry;
+                }
+                if (preselectTaxType) {
+                    document.getElementById('formTaxType').value = preselectTaxType;
+                }
             }
             
             openModal('addModal');
         }
         
+        /**
+         * 编辑当前查看的记录
+         */
         function editRecord() {
             if (currentDetailId) {
                 closeModal('detailModal');
-                const [country, taxType, year] = currentDetailId.key.split('-');
-                openAddModal(country, taxType, currentDetailId.index);
+                const { key, index } = currentDetailId;
+                openAddModal('', '', index, key);
             }
         }
         
@@ -1984,6 +2306,7 @@
             const period = document.getElementById('formPeriod').value;
             const status = document.getElementById('formStatus').value;
             const notes = document.getElementById('formNotes').value;
+            const editId = document.getElementById('editId').value;
             
             if (!country || !taxType || !dueDate) {
                 showToast('请填写必填项', 'error');
@@ -1993,25 +2316,49 @@
             const year = dueDate.split('-')[0];
             const key = `${country}-${taxType}-${year}`;
             
-            if (!appData.taxRecords[key]) {
-                appData.taxRecords[key] = [];
-            }
-            
-            appData.taxRecords[key].push({
+            const newRecord = {
                 period,
                 dueDate,
                 status,
                 notes
-            });
+            };
             
-            appData.taxRecords[key].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            if (editId) {
+                // 编辑模式：更新现有记录
+                const [originalKey, originalIndex] = editId.split('|');
+                const index = parseInt(originalIndex);
+                
+                if (originalKey === key) {
+                    // 同一条记录内修改
+                    appData.taxRecords[originalKey][index] = newRecord;
+                } else {
+                    // 跨税种/国家修改，需要移动记录
+                    appData.taxRecords[originalKey].splice(index, 1);
+                    if (appData.taxRecords[originalKey].length === 0) {
+                        delete appData.taxRecords[originalKey];
+                    }
+                    
+                    if (!appData.taxRecords[key]) {
+                        appData.taxRecords[key] = [];
+                    }
+                    appData.taxRecords[key].push(newRecord);
+                    appData.taxRecords[key].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+                }
+            } else {
+                // 新增模式
+                if (!appData.taxRecords[key]) {
+                    appData.taxRecords[key] = [];
+                }
+                appData.taxRecords[key].push(newRecord);
+                appData.taxRecords[key].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            }
             
             saveLocalData();
             saveToCloud();
             closeModal('addModal');
             renderTable();
             updateStats();
-            showToast('申报记录已保存', 'success');
+            showToast(editId ? '申报记录已更新' : '申报记录已保存', 'success');
         }
         
         function openModal(id) {
@@ -2329,6 +2676,19 @@
             triggerBrowserNotifications();
         }
 
+        // ============ Sync Status Click Handler ============
+        function handleSyncStatusClick() {
+            if (isCloudSyncConfigured()) {
+                // 已配置，显示同步状态并刷新
+                forceRefreshFromCloud();
+            } else {
+                // 未配置，显示设置说明
+                const info = getCloudSyncSetupInfo();
+                console.log(info);
+                alert('请查看浏览器控制台获取云同步设置指南！\n\n按 F12 打开开发者工具，在 Console 标签页查看详细步骤。');
+            }
+        }
+        
         // ============ Toast ============
         function showToast(message, type = 'success') {
             const container = document.getElementById('toastContainer');
